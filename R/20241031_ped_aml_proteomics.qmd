@@ -1,0 +1,89 @@
+---
+title: "Pediatrics AML Proteomics"
+author: "Sebastian Wolf"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    toc-title: "Table of Contents"
+    code-fold: true
+    code-tools: true
+    self-contained: true
+    html-math-method: katex
+execute:
+  echo: false
+  warning: false
+  message: false
+  error: false
+---
+
+# Introduction
+
+MS-based global proteomics was performed to profile sorted CD34+ leukemic blasts from pediatric AML bone marrow samples.
+
+# Setup and QC
+
+```{r}
+library(tidyverse)
+library(janitor)
+```
+
+```{r}
+ped_aml_proteomics <- readxl::read_excel("/data/ped_aml_proteomics.xlsx", skip = 1) %>% 
+  clean_names(parsing_option = 3)
+```
+
+```{r}
+sample_to_prot_id <- readxl::read_excel("/data/Issa_ped-AML_Samples.xlsx", sheet = "r_formatiert", col_names = c("prot_id", "volume", "tmt", "plex", "plex_id", "sample_id"))
+```
+
+```{r}
+sample_metadata <- readxl::read_excel("/data/Issa-H_päd-AML_23-07-10_Protein samples_Batch 1.xlsx", sheet = "r_formatiert", col_names = c("sample_id", "cell_number", "volume", "aml_subtype")) %>% 
+  clean_names()
+```
+
+```{r}
+metadata <- left_join(sample_to_prot_id, sample_metadata, by=c("sample_id")) %>% 
+  dplyr::relocate(sample_id, .after = prot_id) %>% 
+  dplyr::rename("volume_proteomics" = "volume.x", "volume_cells" = "volume.y")
+```
+
+```{r}
+# match proteomics names to proteomics ids
+
+tibble(prot_names = colnames(ped_aml_proteomics)[stringr::str_starts(colnames(ped_aml_proteomics), "x")]) %>% 
+  mutate(replicate = stringr::str_extract(prot_names, "r\\d")) %>% 
+  bind_cols(sample_id = rep(metadata$sample_id, 2)) %>% 
+  mutate(prot_names_new = paste(sample_id, replicate, sep = "_")) -> corrected_names
+
+ped_aml_proteomics %>% 
+  dplyr::select(uniprot_ids : x10_r2_598) %>% 
+  magrittr::set_colnames(c("uniprot_ids", "gene_names", corrected_names$prot_names_new)) -> ped_aml_proteomics
+```
+
+```{r}
+# extract only first uniprotid and try to identify missing gene names
+
+ped_aml_proteomics %>% 
+  mutate(across(.cols = c(uniprot_ids, gene_names), ~ stringr::str_extract(., ".*?(?=;|$)"))) -> ped_aml_proteomics
+
+ped_aml_proteomics %>% 
+  filter(is.na(gene_names))
+
+# manual lookup
+
+c("P0DP25" = "CALM3", "P0DPI2" = "GATD3", "P0DOY3" = "IGLC3", "Q6ZSR9" = "FLJ45252", "P0DPB6" = "POLR1D") -> gene_names_lookup
+
+ped_aml_proteomics %>% 
+  mutate(gene_names = ifelse(is.na(gene_names), gene_names_lookup[uniprot_ids], gene_names)) -> ped_aml_proteomics
+
+# we have duplicates in HLA which we will simply mean aggregate
+
+get_dupes(ped_aml_proteomics, gene_names)
+
+ped_aml_proteomics %>% 
+  pivot_longer(cols = c(-uniprot_ids, -gene_names), names_to = "sample", values_to ="value") %>% 
+  summarize(value = mean(value, na.rm = T), .by=c(gene_names, sample))
+```

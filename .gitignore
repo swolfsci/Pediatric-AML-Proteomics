@@ -1,0 +1,16 @@
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+.DS_Store
+*.csv
+*.xlsx
+*.rds
+.env
+cache/
+outputs/
+.Rproj.user
+.Rdata
+.httr-oauth
+.quarto
