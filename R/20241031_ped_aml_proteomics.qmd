@@ -2,6 +2,7 @@
 title: "Pediatrics AML Proteomics"
 author: "Sebastian Wolf"
 date: today
+lightbox: auto
 format:
   html:
     toc: true
@@ -14,11 +15,13 @@ format:
     html-math-method: katex
     number-sections: true
     number-depth: 3
+    theme: flatly
 execute:
   echo: false
   warning: false
   message: false
   error: false
+  cache: true
 ---
 
 # Introduction
@@ -72,9 +75,6 @@ ped_aml_proteomics %>%
 ped_aml_proteomics %>% 
   mutate(across(.cols = c(uniprot_ids, gene_names), ~ stringr::str_extract(., ".*?(?=;|$)"))) -> ped_aml_proteomics
 
-ped_aml_proteomics %>% 
-  filter(is.na(gene_names))
-
 # manual lookup
 
 c("P0DP25" = "CALM3", "P0DPI2" = "GATD3", "P0DOY3" = "IGLC3", "Q6ZSR9" = "FLJ45252", "P0DPB6" = "POLR1D") -> gene_names_lookup
@@ -83,8 +83,6 @@ ped_aml_proteomics %>%
   mutate(gene_names = ifelse(is.na(gene_names), gene_names_lookup[uniprot_ids], gene_names)) -> ped_aml_proteomics
 
 # we have duplicates in HLA which we will simply mean aggregate
-
-get_dupes(ped_aml_proteomics, gene_names)
 
 
 ped_aml_proteomics %>% 
@@ -104,6 +102,8 @@ ped_aml_proteomics %>%
 ```{r}
 #| label: sample_wise_intensity
 #| fig-cap: "Sample-wise intensity distribution"
+#| fig-width: 7
+#| fig-height: 5
 
 ped_aml_proteomics %>% 
   mutate(sample_id = stringr::str_remove(sample, "_r1|_r2")) %>% 
@@ -112,7 +112,7 @@ ped_aml_proteomics %>%
   ggplot(aes(x=sample, y = value, fill = as.factor(plex))) +
   geom_boxplot(outlier.color = NA) +
   cowplot::theme_cowplot() +
-  theme(legend.position = "bottom",
+  theme(legend.position = "right",
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank()) +
   scale_fill_discrete(name = "plex") -> intensities_I
@@ -124,12 +124,12 @@ ped_aml_proteomics %>%
   ggplot(aes(x= value, col = as.factor(plex))) +
   geom_density() +
   cowplot::theme_cowplot() +
-  theme(legend.position = "bottom",
+  theme(legend.position = "right",
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank()) +
   scale_colour_discrete(name = "plex") -> intensities_II
 
-cowplot::plot_grid(intensities_I, intensities_II)
+cowplot::plot_grid(intensities_I, intensities_II, nrow = 2)
 
 ```
 
@@ -155,6 +155,8 @@ ped_aml_proteomics %>%
 ```{r}
 #| label: missingness
 #| fig-cap: "Pattern of Missingness"
+#| fig-width: 5
+#| fig-height: 3
 
 missing_samples_per_protein %>% 
   as_tibble(rownames = "gene_names") %>% 
@@ -162,7 +164,7 @@ missing_samples_per_protein %>%
     ggplot(., aes(x=value)) +
       geom_histogram(col = "black") +
       geom_vline(xintercept = mean(.$value)) +
-      labs(caption = paste("mean number of missing samples per protein is ", round(mean(.$value),2))) +
+      labs(subtitle = paste("mean number of missing \nsamples per protein is ", round(mean(.$value),2))) +
       cowplot::theme_cowplot()
     } -> missing_sample_per_protein_plot
 
@@ -173,14 +175,14 @@ missing_proteins_per_sample %>%
     ggplot(., aes(x=value)) +
       geom_histogram(col = "black") +
       geom_vline(xintercept = mean(.$value)) +
-      labs(caption = paste("mean number of missing proteins per sample is ", round(mean(.$value),2))) +
+      labs(subtitle = paste("mean number of missing \nproteins per sample is ", round(mean(.$value),2))) +
       cowplot::theme_cowplot()
     } -> missing_protein_per_sample_plot
 
 cowplot::plot_grid(missing_sample_per_protein_plot, missing_protein_per_sample_plot)
 ```
 
-We remove any proteins which have missing quantifications in more than 50% of samples (this is `r missing_samples_per_protein[missing_samples_per_protein > 0.5*126] %>% length()` proteins) and any samples which have less than 70% proteins quantified (none).
+We remove any proteins which have missing quantifications in more than 50% of samples (this is `r length(missing_samples_per_protein[missing_samples_per_protein > 0.5*126])` proteins) and any samples which have less than 70% proteins quantified (none).
 
 ```{r}
 #missing_samples_per_protein[missing_samples_per_protein > 0.5*126] 
@@ -207,6 +209,8 @@ After removing lowly covered proteins we have an average coverage of `r is_na_me
 ```{r}
 #| label: pca_plots
 #| fig-cap: "PCA plots"
+#| fig-width: 8
+#| fig-height: 6
 
 ped_aml_proteomics %>% 
   pivot_wider(id_cols = c(gene_names), names_from = "sample", values_from = "value") %>% 
@@ -222,7 +226,6 @@ ped_aml_proteomics %>%
   geom_point() +
   cowplot::theme_cowplot() +
   scale_colour_discrete(name = "plex") +
-  theme(legend.position = "bottom") +
   ggtitle("PCA per plex") -> pca_per_plex
 
 ped_aml_proteomics %>% 
@@ -257,7 +260,6 @@ ped_aml_proteomics %>%
   ggplot(aes(x=PC1, y = PC2, col = cell_number)) +
   geom_point() +
   cowplot::theme_cowplot() +
-  theme(legend.position = "bottom") +
   scale_colour_continuous(name = "cell number") +
   ggtitle("PCA per cell number") -> pca_cell_number
 
@@ -275,7 +277,6 @@ ped_aml_proteomics %>%
   ggplot(aes(x=PC1, y = PC2, col = aml_subtype)) +
   geom_point() +
   cowplot::theme_cowplot() +
-  theme(legend.position = "bottom") +
   scale_colour_discrete(name = "Subtype") +
   ggtitle("PCA per subtype") -> pca_per_subtype
 
@@ -285,6 +286,10 @@ cowplot::plot_grid(pca_per_plex, pca_per_sample_replicate, pca_cell_number, pca_
 ## Correlation heatmap
 
 ```{r}
+#| fig-cap: "Correlation heatmap"
+#| label: correlation_heatmap
+#| fig-width: 10
+#| fig-height: 10
 ped_aml_proteomics %>% 
   pivot_wider(id_cols = c(gene_names), names_from = "sample", values_from = "value") %>% 
   column_to_rownames("gene_names") %>% 
@@ -293,9 +298,17 @@ ped_aml_proteomics %>%
   ComplexHeatmap::Heatmap(column_dend_reorder = F, row_dend_reorder = F)
 ```
 
+The correlation heatmap confirms a good between-replicate correlation for most of the samples.
+
 And between replicate correlation coefficients
 
 ```{r}
+#| label: corr_coefficients
+#| fig-cap: "Between-replicate correlation coefficients"
+#| fig-width: 4
+#| fig-height: 6
+
+
 ped_aml_proteomics %>% 
   mutate(sample_id = stringr::str_remove(sample, "_r1|_r2")) %>% 
   nest_by(sample_id) %>% 
@@ -314,7 +327,11 @@ ped_aml_proteomics %>%
   labs(x="", y = "correlation coefficient")
 ```
 
+again quite good and no need to discard any replicate.
+
 ## Replicate aggregation
+
+We aggregate the replicates by averaging the intensities.
 
 ```{r}
 ped_aml_proteomics %>% 
@@ -327,6 +344,10 @@ ped_aml_proteomics %>%
 ```
 
 # Exploration
+
+## Clustering
+
+### PCA
 
 ```{r}
 ped_aml_proteomics %>%  
@@ -342,7 +363,6 @@ ped_aml_proteomics %>%
 ```{r}
 #| fig-cap: "PCA plot subtype"
 #| label: pca_subtype
-
 
 ped_aml_proteomics %>% 
   mutate(value = ifelse(is.nan(value), NA_integer_, value)) -> ped_aml_proteomics
@@ -361,7 +381,40 @@ ped_aml_proteomics %>%
   geom_point() +
   cowplot::theme_cowplot()
 ```
-As we can see in @pca_subtype, there is no apparent clustering based on the AML subtypes. 
+As we can see in the PCA plot, there is no apparent clustering based on the different AML subtypes. 
+
+### UMAP
+
+We use an alternative non-linear visualization via UMAP; since UMAP isn't inherently able to handle missing values, we perform an knn imputation first
+
+```{r}
+#| output: false
+
+ped_aml_proteomics %>% 
+  pivot_wider(id_cols = "gene_names", values_from = "value", names_from = "sample_id") %>% 
+  column_to_rownames("gene_names") %>% 
+  as.matrix() %>%
+  impute::impute.knn() %>% 
+  .$data %>% 
+  t() %>% 
+  umap::umap() -> umap.out
+```
+
+
+```{r}
+#| fig-cap: "UMAP visualization"
+#| label: umap
+umap.out$layout %>% 
+  as_tibble(rownames = "sample_id") %>% 
+  left_join(mutate(metadata, sample_id = paste("sample", sample_id, sep = "_")), by=c("sample_id")) %>% 
+  mutate(aml_subtype = as.factor(aml_subtype)) %>% 
+  ggplot(aes(V1, V2, col = aml_subtype)) + 
+  geom_point() +
+  cowplot::theme_cowplot() +
+  labs(x = "UMAP 1", y = "UMAP 2")
+```
+
+### Distance Heatmap
 
 We can try to do an unbiased clustering on the euclidean inter-sample distances
 
@@ -369,6 +422,8 @@ We first identify the "optimal" number of clusters k with the ConsensusClusterin
 
 
 ```{r}
+#| output: false
+
 library(ConsensusClusterPlus)
 
 ped_aml_proteomics %>% 
@@ -385,6 +440,11 @@ ped_aml_proteomics %>%
 which identifies 6 distinct clusters as optimal
 
 ```{r}
+#| label: distance_heatmap
+#| fig-cap: "Distance Heatmap"
+#| fig-width: 12
+#| fig-height: 10
+
 library(ComplexHeatmap)
 
 metadata %>% 
@@ -411,24 +471,62 @@ ped_aml_proteomics %>%
   Heatmap(top_annotation = heatmap_anno, column_split = sample_clustering, cluster_column_slices = T, cluster_columns = F, row_split = sample_clustering, cluster_rows = F, cluster_row_slices = T)
 ```
 
-### Cluster Profiler
+While the majority of clusters appears to mix together different AML subtypes, cluster 1 is clearly enriched for TAM subtype while the small cluster 6 identifies 2 of the 3 healthy control samples. Also for cluster 3 one could assume a certain bias towards MLLr AML samples. 
 
-For this we perform a simple over representation analysis in the one-versus-all cluster definition 
+We can test statistical correlations between AML subtypes and clusters
 
 ```{r}
+sample_clustering %>%
+  as_tibble(rownames = "sample_id") %>% 
+  dplyr::rename("cluster" = "value") %>% 
+  left_join(mutate(metadata, sample_id = paste0("sample_", sample_id)), by=c("sample_id")) -> cluster_df_fisher 
+  
+AML_subtypes <- distinct(cluster_df_fisher, aml_subtype)$aml_subtype
+
+test_subtype <- function(subtype, cluster) {
+  table(cluster_df_fisher$cluster == cluster, cluster_df_fisher$aml_subtype == subtype) %>% 
+    rstatix::fisher_test() -> fisher.out
+    return(
+      tibble("subtype" = subtype, "cluster" = cluster, "p" = fisher.out$p)
+    )
+}
+
+map_df(1:6, function(cluster){
+  map(AML_subtypes, function(aml_subtype){
+    test_subtype(subtype = aml_subtype, cluster = cluster)
+  })
+}) %>% 
+  arrange(p) %>% 
+  DT::datatable(filter = "top", options = list(autoWidth = F, scrollX = T), class = "compact hover row-border stripe dt-left cell-border nowrap")
+
+```
+
+
+### GO Enrichments
+
+For this we perform a simple over representation analysis in the one-versus-all cluster definition with GO terms
+
+```{r}
+#| output: false
 library(limma)
 
+# create cluste df for the limma model matrix
 metadata %>% 
   dplyr::select(sample_id) %>% 
   mutate(sample_id = paste("sample", sample_id, sep = "_")) %>% 
   bind_cols(cluster = sample_clustering) -> cluster_df
 
-sapply(1:6, FUN = function(n)
+
+# simple vectorized DE function to test one-vs-all clusters
+test_clusters <- memoise::memoise(function(n, cluster_df, proteomics_data)
   {
+  # build the model matrix 
   mm <- model.matrix(~ 0 + as.factor(cluster_df$cluster == n))
+  # define the contrast
   colnames(mm) <- c("not_in_clus", "in_clus")
   cm <- makeContrasts(in_clus - not_in_clus, levels = mm)
   
+  # reshapeinto wide matrix and run limma workflow
   ped_aml_proteomics %>% 
   pivot_wider(id_cols = "gene_names", values_from = "value", names_from = "sample_id") %>% 
   column_to_rownames("gene_names") %>% 
@@ -438,18 +536,171 @@ sapply(1:6, FUN = function(n)
     eBayes() %>% 
     topTable(number = Inf) %>% 
     as_tibble(rownames = "gene") %>% 
+    # extract the significantly upregulated (logFC >0) genes per cluster
     filter(adj.P.Val <= 0.05 & logFC > 0 ) %>% 
     pull(gene)
-}, simplify = F, USE.NAMES = T) %>% 
-  ### we need entrezID here
-  clusterProfiler::compareCluster(geneClusters = ., orgDb = "org.Hs.eg.db") 
+})
 
+de_upregulated_genes <- map(1:6, ~ test_clusters(.x, cluster_df, ped_aml_proteomics))
+
+
+# clusterProfiler::compareClusters() works with EntrezID - map first using bitr
+memoise::memoise(map(de_upregulated_genes, ~ clusterProfiler::bitr(geneID = .x, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = "org.Hs.eg.db") %>% 
+      pull(ENTREZID)) %>% 
+  magrittr::set_names(paste("Cluster_", 1:6)) %>% 
+  clusterProfiler::compareCluster(geneClusters = ., 
+                                  OrgDb = "org.Hs.eg.db", 
+                                  ont = "ALL") -> cluster_comparison_de_up)
 ```
 
 
 ```{r}
-library(clusterProfiler)
+#| fig-width: 10
+#| fig-height: 18
+enrichplot::dotplot(cluster_comparison_de_up, showCategory = 10)
+```
+```{r}
+#| fig-width: 12
+#| fig-height: 12
 
-clusterProfiler::compareCluster()
+
+enrichplot::pairwise_termsim(cluster_comparison_de_up) %>% 
+  enrichplot::emapplot(cex.params = list(line = 0.15))
 ```
 
+```{r}
+library(clusterProfiler)
+library(DT)
+library(dplyr)
+
+# Assuming your compareCluster results are stored in 'ck'
+# Convert the results to a more usable format
+process_cluster_results <- function(ck) {
+  as_tibble(ck) %>%
+    dplyr::select(Cluster, ID, Description, GeneRatio, BgRatio, pvalue, p.adjust, qvalue, geneID) %>%
+    split(.$Cluster)
+}
+
+# Function to create a formatted datatable
+create_cluster_table <- function(cluster_df) {
+  datatable(
+    cluster_df %>% dplyr::select(-Cluster),
+    extensions = 'Buttons',
+    filter = "top", 
+    class = "compact hover row-border stripe dt-left cell-border nowrap",
+    options = list(
+      pageLength = 10,
+      dom = 'Bfrtip',
+      buttons = c('copy', 'csv', 'excel'),
+      scrollX = TRUE,
+      autoWidth = F
+    )
+  )
+}
+
+cluster_results <- process_cluster_results(cluster_comparison_de_up)
+```
+
+Find here the detailed ORA report of the significantly up-regulated one-vs-all GO terms
+
+::: {.panel-tabset}
+
+## Cluster 1
+```{r}
+create_cluster_table(cluster_results[[1]])
+```
+
+## Cluster 2
+```{r}
+create_cluster_table(cluster_results[[2]])
+```
+
+## Cluster 3
+```{r}
+create_cluster_table(cluster_results[[3]])
+```
+
+## Cluster 4
+```{r}
+create_cluster_table(cluster_results[[4]])
+```
+
+## Cluster 5
+```{r}
+create_cluster_table(cluster_results[[5]])
+```
+
+## Cluster 6
+```{r}
+create_cluster_table(cluster_results[[6]])
+```
+
+:::
+
+### Reactome Enrichments
+
+We also perform REACTOME pathway enrichments
+
+```{r}
+#| output: false
+
+# clusterProfiler::compareClusters() works with EntrezID - map first using bitr
+memoise::memoise(map(de_upregulated_genes, ~ clusterProfiler::bitr(geneID = .x, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = "org.Hs.eg.db") %>% 
+      pull(ENTREZID)) %>% 
+  magrittr::set_names(paste("Cluster_", 1:6)) %>% 
+  clusterProfiler::compareCluster(geneClusters = ., 
+                                  fun = "enrichPathway") -> cluster_comparison_de_up_reactome)
+```
+```{r}
+#| fig-width: 10
+#| fig-height: 18
+enrichplot::dotplot(cluster_comparison_de_up_reactome, showCategory = 10)
+```
+
+```{r}
+#| fig-width: 12
+#| fig-height: 12
+
+
+enrichplot::pairwise_termsim(cluster_comparison_de_up_reactome) %>% 
+  enrichplot::emapplot(cex.params = list(line = 0.15))
+```
+
+```{r}
+
+cluster_results <- process_cluster_results(cluster_comparison_de_up_reactome)
+```
+
+::: {.panel-tabset}
+
+## Cluster 1
+```{r}
+create_cluster_table(cluster_results[[1]])
+```
+
+## Cluster 2
+```{r}
+create_cluster_table(cluster_results[[2]])
+```
+
+## Cluster 3
+```{r}
+create_cluster_table(cluster_results[[3]])
+```
+
+## Cluster 4
+```{r}
+create_cluster_table(cluster_results[[4]])
+```
+
+## Cluster 5
+```{r}
+create_cluster_table(cluster_results[[5]])
+```
+
+## Cluster 6
+```{r}
+create_cluster_table(cluster_results[[6]])
+```
+
+:::
